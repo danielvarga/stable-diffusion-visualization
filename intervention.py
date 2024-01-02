@@ -2,28 +2,29 @@ import torch
 import matplotlib.pyplot as plt
 from diffusers import StableDiffusionPipeline
 
+from transformers import CLIPTextModel, CLIPTokenizer
+from diffusers import AutoencoderKL, UNet2DConditionModel, PNDMScheduler, LMSDiscreteScheduler
+from torch import autocast
+from tqdm.auto import tqdm
+from PIL import Image
+
 
 torch_device = "cuda" if torch.cuda.is_available() else "cpu"
 
-'''
-pipe = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", torch_dtype=torch.float16)
+def simple_generation():
+    pipe = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", torch_dtype=torch.float16)
 
-pipe = pipe.to("cuda")
+    pipe = pipe.to(torch_device)
 
-prompt = "a photograph of an astronaut riding a horse"
+    prompt = "a photograph of an astronaut riding a horse"
 
-generator = torch.Generator("cuda").manual_seed(1024)
+    generator = torch.Generator(torch_device).manual_seed(1024)
 
-image = pipe(prompt, generator=generator).images[0]
+    image = pipe(prompt, generator=generator).images[0]
 
-# Now to display an image you can either save it such as:
-image.save(f"astronaut_rides_horse.png")
-'''
+    # Now to display an image you can either save it such as:
+    image.save(f"astronaut_rides_horse.png")
 
-
-
-from transformers import CLIPTextModel, CLIPTokenizer
-from diffusers import AutoencoderKL, UNet2DConditionModel, PNDMScheduler
 
 # 1. Load the autoencoder model which will be used to decode the latents into image space.
 vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae")
@@ -35,9 +36,6 @@ text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14")
 # 3. The UNet model for generating the latents.
 unet = UNet2DConditionModel.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="unet")
 
-
-from diffusers import LMSDiscreteScheduler
-
 scheduler = LMSDiscreteScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler")
 
 
@@ -46,21 +44,9 @@ text_encoder = text_encoder.to(torch_device)
 unet = unet.to(torch_device)
 
 
-unet._modules['down_blocks'][2].resnets[0].conv2.bias.data[0] -= 70
 
 
 prompt = ["Portrait of a beautiful girl. national geographic cover photo."]
-
-height = 512                        # default height of Stable Diffusion
-width = 512                         # default width of Stable Diffusion
-
-num_inference_steps = 100            # Number of denoising steps
-
-guidance_scale = 7.5                # Scale for classifier-free guidance
-
-generator = torch.manual_seed(32)   # Seed generator to create the inital latent noise
-
-batch_size = 1
 
 text_input = tokenizer(prompt, padding="max_length", max_length=tokenizer.model_max_length, truncation=True, return_tensors="pt")
 
@@ -68,6 +54,7 @@ text_input = tokenizer(prompt, padding="max_length", max_length=tokenizer.model_
 with torch.no_grad():
   text_embeddings = text_encoder(text_input.input_ids.to(torch_device))[0]
 
+batch_size = 1
 
 max_length = text_input.input_ids.shape[-1]
 uncond_input = tokenizer(
@@ -78,54 +65,65 @@ with torch.no_grad():
 
 text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
-latents = torch.randn(
-  (batch_size, unet.config.in_channels, height // 8, width // 8),
-  generator=generator,
-)
-latents = latents.to(torch_device)
 
-scheduler.set_timesteps(num_inference_steps)
+def generation(text_embeddings, unet, output_filename):
+    batch_size = 1
 
-latents = latents * scheduler.init_noise_sigma
+    height = 512                        # default height of Stable Diffusion
+    width = 512                         # default width of Stable Diffusion
 
-from torch import autocast
-from tqdm.auto import tqdm
+    num_inference_steps = 100            # Number of denoising steps
 
+    guidance_scale = 7.5                # Scale for classifier-free guidance
 
-for t in tqdm(scheduler.timesteps):
-  # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
-  latent_model_input = torch.cat([latents] * 2)
+    generator = torch.manual_seed(32)   # Seed generator to create the inital latent noise
 
-  latent_model_input = scheduler.scale_model_input(latent_model_input, t)
+    scheduler.set_timesteps(num_inference_steps)
 
-  # predict the noise residual
-  with torch.no_grad():
-    noise_pred = unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
+    latents = torch.randn(
+      (batch_size, unet.config.in_channels, height // 8, width // 8),
+      generator=generator,
+    )
+    latents = latents.to(torch_device)
 
-  # perform guidance
-  noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-  noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+    latents = latents * scheduler.init_noise_sigma
 
-  # compute the previous noisy sample x_t -> x_t-1
-  latents = scheduler.step(noise_pred, t, latents).prev_sample
+    for t in tqdm(scheduler.timesteps):
+        # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
+        latent_model_input = torch.cat([latents] * 2)
 
+        latent_model_input = scheduler.scale_model_input(latent_model_input, t)
 
-# scale and decode the image latents with vae
-latents = 1 / 0.18215 * latents
+        # predict the noise residual
+        with torch.no_grad():
+            noise_pred = unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
 
-with torch.no_grad():
-  image = vae.decode(latents).sample
+        # perform guidance
+        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+        noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
-image = (image / 2 + 0.5).clamp(0, 1)
-image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
-images = (image * 255).round().astype("uint8")
-# pil_images = [Image.fromarray(image) for image in images]
+        # compute the previous noisy sample x_t -> x_t-1
+        latents = scheduler.step(noise_pred, t, latents).prev_sample
 
-from PIL import Image
+    # scale and decode the image latents with vae
+    latents = 1 / 0.18215 * latents
 
-pil_images = [Image.fromarray(image) for image in images]
-for i, pil_image in enumerate(pil_images):
-     pil_image.save(f"boost_{i:03}.png")
+    with torch.no_grad():
+        image = vae.decode(latents).sample
+
+    image = (image / 2 + 0.5).clamp(0, 1)
+    image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
+    images = (image * 255).round().astype("uint8")
+
+    pil_images = [Image.fromarray(image) for image in images]
+    pil_images[0].save(output_filename)
+
+# intervention
+unet._modules['down_blocks'][2].resnets[0].conv2.bias.data[0] += 70
+
+generation(text_embeddings, unet, "boost_70.png")
+unet._modules['down_blocks'][2].resnets[0].conv2.bias.data[0] -= 140
+generation(text_embeddings, unet, "boost_-70.png")
 
 
 exit()
@@ -181,7 +179,7 @@ for i in range(100):
 
 print("input_data", input_data.shape)
 
-input_data = input_data.to("cuda")
+input_data = input_data.to(torch_device)
 
 
 with torch.no_grad():
