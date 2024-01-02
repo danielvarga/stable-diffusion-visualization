@@ -47,7 +47,8 @@ unet = unet.to(torch_device)
 
 
 # prompt = ["Portrait of a beautiful girl. national geographic cover photo."]
-prompt = ["a picture of a cat."]
+prompt = ["a photograph of a beautiful girl riding a horse"]
+# prompt = ["a picture of a cat."]
 
 
 text_input = tokenizer(prompt, padding="max_length", max_length=tokenizer.model_max_length, truncation=True, return_tensors="pt")
@@ -134,10 +135,11 @@ def intervention(tensor, positions, bias_shifts):
 
 
 tensor = unet._modules['down_blocks'][2].resnets[0].conv2.bias.data
-intervention(tensor, positions=[0, 1], bias_shifts=[-70, 0, 70])
+tensor = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.to_q.weight
+with torch.no_grad():
+    intervention(tensor, positions=[0, 1], bias_shifts=[-10, 0, 10])
+# intervention(tensor, positions=list(range(10)), bias_shifts=[200])
 exit()
-
-
 
 
 
