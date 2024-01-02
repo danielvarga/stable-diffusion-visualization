@@ -9,11 +9,17 @@ from torch import autocast
 from tqdm.auto import tqdm
 from PIL import Image
 
+from diffusers import AutoPipelineForText2Image, AutoPipelineForImage2Image
+from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline
+
+
 
 torch_device = "cuda" if torch.cuda.is_available() else "cpu"
 
 def simple_generation():
-    pipe = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", torch_dtype=torch.float16)
+    # pipe = AutoPipelineForText2Image.from_pretrained("stabilityai/sdxl-turbo", torch_dtype=torch.float16, variant="fp16")
+    pipe = StableDiffusionXLPipeline.from_pretrained("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, variant="fp16", use_safetensors=True)
+    # pipe = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", torch_dtype=torch.float16)
 
     pipe = pipe.to(torch_device)
 
@@ -25,6 +31,10 @@ def simple_generation():
 
     # Now to display an image you can either save it such as:
     image.save(f"astronaut_rides_horse.png")
+
+
+# simple_generation() ; exit()
+
 
 
 # 1. Load the autoencoder model which will be used to decode the latents into image space.
