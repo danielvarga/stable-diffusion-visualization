@@ -46,7 +46,9 @@ unet = unet.to(torch_device)
 
 
 
-prompt = ["Portrait of a beautiful girl. national geographic cover photo."]
+# prompt = ["Portrait of a beautiful girl. national geographic cover photo."]
+prompt = ["a picture of a cat."]
+
 
 text_input = tokenizer(prompt, padding="max_length", max_length=tokenizer.model_max_length, truncation=True, return_tensors="pt")
 
@@ -118,14 +120,21 @@ def generation(text_embeddings, unet, output_filename):
     pil_images = [Image.fromarray(image) for image in images]
     pil_images[0].save(output_filename)
 
+
+
 # intervention
-unet._modules['down_blocks'][2].resnets[0].conv2.bias.data[0] += 70
+def intervention(tensor, positions, bias_shifts):
+    for position in positions:
+        for bias_shift in bias_shifts:
+            tensor[position] += bias_shift
+            filename = f"boost_{position}_{bias_shift}.png"
+            generation(text_embeddings, unet, filename)
+            print(filename, "saved")
+            tensor[position] -= bias_shift
 
-generation(text_embeddings, unet, "boost_70.png")
-unet._modules['down_blocks'][2].resnets[0].conv2.bias.data[0] -= 140
-generation(text_embeddings, unet, "boost_-70.png")
 
-
+tensor = unet._modules['down_blocks'][2].resnets[0].conv2.bias.data
+intervention(tensor, positions=[0, 1], bias_shifts=[-70, 0, 70])
 exit()
 
 
