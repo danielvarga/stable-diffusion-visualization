@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from diffusers import StableDiffusionPipeline
@@ -69,6 +70,13 @@ with torch.no_grad():
 text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
 
+intervention_output = None
+
+def hook_fn(module, input, output):
+    global intervention_output
+    intervention_output = output
+
+
 def generation(text_embeddings, unet, output_filename):
     batch_size = 1
 
@@ -101,6 +109,8 @@ def generation(text_embeddings, unet, output_filename):
         with torch.no_grad():
             noise_pred = unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
 
+        # print(intervention_output.shape) ; exit()
+
         # perform guidance
         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
@@ -127,25 +137,25 @@ def generation(text_embeddings, unet, output_filename):
 def intervention(tensor, positions, bias_shifts):
     for position in positions:
         for bias_shift in bias_shifts:
-            tensor[position] += bias_shift
-            filename = f"boost_{position}_{bias_shift}.png"
+            tensor[:, position] += bias_shift
+            filename = f"boost_{position}_{bias_shift}_b.png"
             generation(text_embeddings, unet, filename)
             print(filename, "saved")
-            tensor[position] -= bias_shift
+            tensor[:, position] -= bias_shift
 
 
-tensor = unet._modules['down_blocks'][2].resnets[0].conv2.bias.data
-tensor = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.to_q.weight
+hook = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.register_forward_hook(hook_fn)
+
+# tensor = unet._modules['down_blocks'][2].resnets[0].conv2.bias.data
+tensor = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.to_v.weight
 with torch.no_grad():
-    intervention(tensor, positions=[0, 1], bias_shifts=[-10, 0, 10])
-# intervention(tensor, positions=list(range(10)), bias_shifts=[200])
+    # intervention(tensor, positions=[0], bias_shifts=np.linspace(0, 100, 21))
+    intervention(tensor, positions=[0], bias_shifts=[-10000, -1000, 0, 1000, 10000])
+    # intervention(tensor, positions=list(range(10)), bias_shifts=[200])
 exit()
 
 
 
-def hook_fn(module, input, output):
-    global hooked_output3
-    hooked_output3 = output
 
 # hook = unet._modules['down_blocks'][0].resnets[0].conv1.register_forward_hook(hook_fn)
 hook = unet._modules['conv_in'].register_forward_hook(hook_fn)
