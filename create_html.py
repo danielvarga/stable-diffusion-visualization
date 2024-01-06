@@ -1,8 +1,6 @@
 import numpy as np
 
-
-def generate_html(filenames, grid_width):
-    # Start the HTML string.
+def header(grid_width):
     html_content = """
     <!DOCTYPE html>
     <html>
@@ -24,6 +22,19 @@ def generate_html(filenames, grid_width):
     </style>
     </head>
     <body>
+"""
+    return html_content
+
+
+def footer():
+    return """</body>
+    </html>
+"""
+
+
+def grid(filenames):
+    # Start the HTML string.
+    html_content = """
     <div class="grid-container">
     """
 
@@ -38,10 +49,8 @@ def generate_html(filenames, grid_width):
     # Close the HTML tags.
     html_content += """
     </div>
-    </body>
-    </html>
-    """
-    
+    <hr/>
+"""
     return html_content
 
 
@@ -72,12 +81,14 @@ neurons = range(30)
 shifts = np.around(np.linspace(-1000, 1000, 11)).astype(int)
 
 
+html_pieces = [header(len(shifts))]
 
-# Generate the filenames based on the given pattern.
-filenames = [f"{prefix}_{prompt_index}_{neuron}_{shift}.png" for neuron in neurons for prompt_index in prompt_indices for shift in shifts]
+for neuron in neurons:
+    filenames = [f"{prefix}_{prompt_index}_{neuron}_{shift}.png" for prompt_index in prompt_indices for shift in shifts]
+    html_pieces.append(grid(filenames))
 
-# Generate the HTML content.
-html_content = generate_html(filenames, columns=len(shifts))
+html_pieces += [footer()]
 
-# This is the code that you would run to generate the HTML content.
+html_content = "".join(html_pieces)
+
 print(html_content)
