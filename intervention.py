@@ -157,7 +157,7 @@ def intervention(tensor, positions, bias_shifts):
     for position in positions:
         for bias_shift in bias_shifts:
             tensor[..., position] += bias_shift
-            filename = f"d_boost_{position}_{bias_shift}.png"
+            filename = f"e_boost_{position}_{bias_shift}.png"
             generation(text_embeddings, unet, filename)
             print(filename, "saved")
             tensor[..., position] -= bias_shift
@@ -178,13 +178,14 @@ tensor = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.to
 '''
 
 layer = unet._modules['mid_block'].attentions[0].transformer_blocks[0].ff.net[2]
+layer = unet._modules['mid_block'].attentions[0].proj_out
 
 hook = layer.register_forward_hook(hook_fn)
 
 tensor = layer.bias.data
 
 with torch.no_grad():
-    intervention(tensor, positions=[0], bias_shifts=[-1000, -100, 100, 1000])
+    intervention(tensor, positions=range(10), bias_shifts=[-1000, 1000])
 
 exit()
 
