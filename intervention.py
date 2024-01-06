@@ -174,17 +174,17 @@ tensor = layer.bias.data
 
 
 prompts = [
-    "a picture of a cat",
-    "amazing classicist architecture",
     "a photograph of a beautiful girl riding a horse",
+    # "a picture of a cat",
+    # "amazing classicist architecture",
 ]
 
 for prompt_index, prompt in enumerate(prompts):
     text_embeddings = prompt_to_tensor(prompt)
 
     with torch.no_grad():
-        prefix = f"f_boost_{prompt_index}"
-        intervention(prefix, tensor, positions=range(5), bias_shifts=[-1000, 1000])
+        prefix = f"g_boost_{prompt_index}"
+        intervention(prefix, tensor, positions=[3], bias_shifts=np.linspace(-1000, 1000, 21))
 
 exit()
 
