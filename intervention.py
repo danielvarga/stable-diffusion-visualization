@@ -57,29 +57,6 @@ unet = unet.to(torch_device)
 
 
 
-# prompt = ["Portrait of a beautiful girl. national geographic cover photo."]
-prompt = ["a photograph of a beautiful girl riding a horse"]
-# prompt = ["a picture of a cat."]
-
-
-text_input = tokenizer(prompt, padding="max_length", max_length=tokenizer.model_max_length, truncation=True, return_tensors="pt")
-
-
-with torch.no_grad():
-  text_embeddings = text_encoder(text_input.input_ids.to(torch_device))[0]
-
-batch_size = 1
-
-max_length = text_input.input_ids.shape[-1]
-uncond_input = tokenizer(
-    [""] * batch_size, padding="max_length", max_length=max_length, return_tensors="pt"
-)
-with torch.no_grad():
-  uncond_embeddings = text_encoder(uncond_input.input_ids.to(torch_device))[0]
-
-text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
-
-
 intervention_output = None
 
 def generation(text_embeddings, unet, output_filename):
@@ -150,24 +127,35 @@ def hook_fn(module, input, output):
     intervention_output = output
 
 
-
-
 # intervention
-def intervention(tensor, positions, bias_shifts):
+def intervention(prefix, tensor, positions, bias_shifts):
     for position in positions:
         for bias_shift in bias_shifts:
             tensor[..., position] += bias_shift
-            filename = f"e_boost_{position}_{bias_shift}.png"
+            filename = f"{prefix}_{position}_{bias_shift}.png"
             generation(text_embeddings, unet, filename)
             print(filename, "saved")
             tensor[..., position] -= bias_shift
 
 
-# decisions:
-# bias or attention.v?
-# exactly where?
-# if bias: no decision, boost.
-# if v: it would be nice to boost the output additively, but instead we 
+def prompt_to_tensor(prompt):
+    text_input = tokenizer(prompt, padding="max_length", max_length=tokenizer.model_max_length, truncation=True, return_tensors="pt")
+
+    with torch.no_grad():
+        text_embeddings = text_encoder(text_input.input_ids.to(torch_device))[0]
+
+    batch_size = 1
+
+    max_length = text_input.input_ids.shape[-1]
+    uncond_input = tokenizer(
+        [""] * batch_size, padding="max_length", max_length=max_length, return_tensors="pt"
+    )
+    with torch.no_grad():
+        uncond_embeddings = text_encoder(uncond_input.input_ids.to(torch_device))[0]
+
+    text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
+    return text_embeddings
+
 
 
 '''
@@ -184,8 +172,19 @@ hook = layer.register_forward_hook(hook_fn)
 
 tensor = layer.bias.data
 
-with torch.no_grad():
-    intervention(tensor, positions=range(10), bias_shifts=[-1000, 1000])
+
+prompts = [
+    "a picture of a cat",
+    "amazing classicist architecture",
+    "a photograph of a beautiful girl riding a horse",
+]
+
+for prompt_index, prompt in enumerate(prompts):
+    text_embeddings = prompt_to_tensor(prompt)
+
+    with torch.no_grad():
+        prefix = f"f_boost_{prompt_index}"
+        intervention(prefix, tensor, positions=range(5), bias_shifts=[-1000, 1000])
 
 exit()
 
