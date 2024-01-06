@@ -109,7 +109,7 @@ def generation(text_embeddings, unet, output_filename):
 
     latents = latents * scheduler.init_noise_sigma
 
-    for t in tqdm(scheduler.timesteps):
+    for iteration_step, t in enumerate(tqdm(scheduler.timesteps)):
         # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
         latent_model_input = torch.cat([latents] * 2)
 
@@ -119,7 +119,15 @@ def generation(text_embeddings, unet, output_filename):
         with torch.no_grad():
             noise_pred = unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
 
-        # print(intervention_output.shape) ; exit()
+        if iteration_step in (10, num_inference_steps - 10):
+            print("iteration_step", iteration_step)
+            print(intervention_output.shape)
+            for text_i in (0, 1):
+                for token_i in (0, 1):
+                    vec = intervention_output[text_i, token_i, :].cpu().numpy()
+                    h = np.histogram(np.log(np.abs(vec)))
+                    # print("uncond" if text_i == 0 else "cond", f"neuron #{token_i}", h[0], np.exp(h[1]))
+                    print("uncond" if text_i == 0 else "cond", f"neuron #{token_i}", vec.mean(), vec.std())
 
         # perform guidance
         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
@@ -148,10 +156,17 @@ def intervention(tensor, positions, bias_shifts):
     for position in positions:
         for bias_shift in bias_shifts:
             tensor[:, position] += bias_shift
-            filename = f"boost_{position}_{bias_shift}_b.png"
+            filename = f"c_boost_{position}_{bias_shift}.png"
             generation(text_embeddings, unet, filename)
             print(filename, "saved")
             tensor[:, position] -= bias_shift
+
+
+# decisions:
+# bias or attention.v?
+# exactly where?
+# if bias: no decision, boost.
+# if v: it would be nice to boost the output additively, but instead we 
 
 
 hook = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.register_forward_hook(hook_fn)
@@ -160,7 +175,7 @@ hook = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.regi
 tensor = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.to_v.weight
 with torch.no_grad():
     # intervention(tensor, positions=[0], bias_shifts=np.linspace(0, 100, 21))
-    intervention(tensor, positions=[0], bias_shifts=[-10000, -1000, 0, 1000, 10000])
+    intervention(tensor, positions=[0, 1, 2, 3], bias_shifts=[-10, -5, -1, 0, 1, 5, 10])
     # intervention(tensor, positions=list(range(10)), bias_shifts=[200])
 exit()
 
