@@ -82,11 +82,6 @@ text_embeddings = torch.cat([uncond_embeddings, text_embeddings])
 
 intervention_output = None
 
-def hook_fn(module, input, output):
-    global intervention_output
-    intervention_output = output
-
-
 def generation(text_embeddings, unet, output_filename):
     batch_size = 1
 
@@ -150,16 +145,22 @@ def generation(text_embeddings, unet, output_filename):
     pil_images[0].save(output_filename)
 
 
+def hook_fn(module, input, output):
+    global intervention_output
+    intervention_output = output
+
+
+
 
 # intervention
 def intervention(tensor, positions, bias_shifts):
     for position in positions:
         for bias_shift in bias_shifts:
-            tensor[:, position] += bias_shift
-            filename = f"c_boost_{position}_{bias_shift}.png"
+            tensor[..., position] += bias_shift
+            filename = f"d_boost_{position}_{bias_shift}.png"
             generation(text_embeddings, unet, filename)
             print(filename, "saved")
-            tensor[:, position] -= bias_shift
+            tensor[..., position] -= bias_shift
 
 
 # decisions:
@@ -169,14 +170,22 @@ def intervention(tensor, positions, bias_shifts):
 # if v: it would be nice to boost the output additively, but instead we 
 
 
+'''
 hook = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.register_forward_hook(hook_fn)
 
 # tensor = unet._modules['down_blocks'][2].resnets[0].conv2.bias.data
 tensor = unet._modules['mid_block'].attentions[0].transformer_blocks[0].attn1.to_v.weight
+'''
+
+layer = unet._modules['mid_block'].attentions[0].transformer_blocks[0].ff.net[2]
+
+hook = layer.register_forward_hook(hook_fn)
+
+tensor = layer.bias.data
+
 with torch.no_grad():
-    # intervention(tensor, positions=[0], bias_shifts=np.linspace(0, 100, 21))
-    intervention(tensor, positions=[0, 1, 2, 3], bias_shifts=[-10, -5, -1, 0, 1, 5, 10])
-    # intervention(tensor, positions=list(range(10)), bias_shifts=[200])
+    intervention(tensor, positions=[0], bias_shifts=[-1000, -100, 100, 1000])
+
 exit()
 
 
