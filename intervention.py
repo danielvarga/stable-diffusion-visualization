@@ -174,17 +174,24 @@ tensor = layer.bias.data
 
 
 prompts = [
-    "a photograph of a beautiful girl riding a horse",
-    # "a picture of a cat",
-    # "amazing classicist architecture",
+    "inspiring beautiful girl walking among crowd of celebrating people in a beautiful futuristic city on 1st of May by Edward Hopper and Dan Mumford and WLOP, Unreal Engine 5, Lumen, Nanite",
+    "highly detailed portrait of emily blunt, in the walking dead, stephen bliss, unreal engine, fantasy art by greg rutkowski, loish, rhads, ferdinand knab, makoto shinkai and lois van baarle, ilya kuvshinov, rossdraws, tom bagshaw, global illumination, radiant light, detailed and intricate environment",
+    "a portrait of donald trump with gorgeous pastel balayage hairstyle, contemplating deep philosophical quandaries, as seen on artgerm, octane render, in the style of alphonse mucha, ultra realistic, highly detailed, 8 k, ",
+    "juicy vegan hamburger topped with guacamole and fried onion and a vegan fried egg, crispy buns, 8 k resolution, professional food photography, studio lighting, sharp focus, hyper - detailed ",
+    "portrait, 30 years old man :: red hair ponytail :: burned face, grimy, rough, shirtless :: high detail, digital art, RPG, concept art, illustration",
+    "cute cartoon little tractor dragging the russian tank on the sunflower field by goro fujita and simon stalenhag and wes anderson and alex andreev and chiho aoshima and beeple and banksy and kandinsky and magritte and basquiat and picasso, 8 k, trending on artstation, hyper detailed, cinematic ",
+    "a beautiful watercolour on 3 0 0 gsm paper of a school of mackerel, 8 k, frostbite 3 engine, cryengine, dof, trending on artstation, digital art, crepuscular ray ",
+    "rosie jetson, intricate, elegant, highly detailed, digital painting, artstation, concept art, smooth, sharp focus, illustration, art by artgerm and greg rutkowski and alphonse mucha and william - adolphe bouguereau ",
+    "cute calico kitten looking out of the window on a [ [ [ [ beautiful ] ] ] ] summer day, storybook art, detailed, cute, profile shot, featured on artstationg, gorgeous!!! ",
+    "portrait shot of a steampunk robot bug, unreal engine realistic render, 8 k, micro detail, intricate, elegant, highly detailed, centered, digital painting, artstation, smooth, sharp focus, illustration, artgerm, tomasz alen kopera, peter mohrbacher, donato giancola, joseph christian leyendecker, wlop, boris vallejo ",
 ]
 
 for prompt_index, prompt in enumerate(prompts):
     text_embeddings = prompt_to_tensor(prompt)
 
     with torch.no_grad():
-        prefix = f"g_boost_{prompt_index}"
-        intervention(prefix, tensor, positions=[3], bias_shifts=np.linspace(-1000, 1000, 21))
+        prefix = f"j_boost_{prompt_index}"
+        intervention(prefix, tensor, positions=range(30), bias_shifts=np.around(np.linspace(-1000, 1000, 11)).astype(int))
 
 exit()
 

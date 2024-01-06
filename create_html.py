@@ -1,3 +1,6 @@
+import numpy as np
+
+
 def generate_html(filenames, grid_width):
     # Start the HTML string.
     html_content = """
@@ -42,19 +45,39 @@ def generate_html(filenames, grid_width):
     return html_content
 
 
-# Parameters for the filenames
-first_params = [0, 1, 2]  # Can be expanded for larger grids.
-second_params = [-1000, 1000]  # Can be expanded for larger grids.
+prefix = "f_boost"
+prompt_indices = [0, 1, 2]
+neurons = [3]
+shifts = [-1000, 1000]  # Can be expanded for larger grids.
 
-first_params = [0]
-import numpy as np
-second_params = np.linspace(-1000, 1000, 21)
+
+prefix = "g_boost"
+prompt_indices = [0]
+neurons = [3]
+shifts = np.linspace(-1000, 1000, 21)
+
+prefix = "h_boost"
+prompt_indices = [0,1,2,3]
+neurons = [0,1,2,3]
+shifts = [-1000, 1000]
+
+prefix = "i_boost"
+prompt_indices = [0,1,2]
+neurons = [0,1,2,3]
+shifts = np.around(np.linspace(-1000, 1000, 6)).astype(int)
+
+prefix = "j_boost"
+prompt_indices = range(10)
+neurons = range(30)
+shifts = np.around(np.linspace(-1000, 1000, 11)).astype(int)
+
+
 
 # Generate the filenames based on the given pattern.
-filenames = [f"g_boost_{i}_3_{j}.png" for i in first_params for j in second_params]
+filenames = [f"{prefix}_{prompt_index}_{neuron}_{shift}.png" for neuron in neurons for prompt_index in prompt_indices for shift in shifts]
 
 # Generate the HTML content.
-html_content = generate_html(filenames, len(second_params))
+html_content = generate_html(filenames, columns=len(shifts))
 
 # This is the code that you would run to generate the HTML content.
 print(html_content)
